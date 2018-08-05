@@ -1,0 +1,6 @@
+---
+ops_manager: 
+  project: 5b51818fd383ad2fff5472b4
+  api_user: enrique.garneloprediger
+  api_password: 0ee877c3-ca85-4655-9fc1-d62195e99dbf
+  base_url: https://cloud.mongodb.com
