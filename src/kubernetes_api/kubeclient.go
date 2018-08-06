@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -45,6 +46,11 @@ func New(nsName string) kubeClient {
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	apiextensionsClient, err := apiextensionsclientset.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -327,3 +333,15 @@ func (client kubeClient) deleteOperator() {
 		log.Output(0, err.Error())
 	}
 }
+
+func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
+
+}
+func (client kubeClient) DeleteStandalone(name string) {}
+
+func (client kubeClient) CreateReplicaSet(name string, mongoVersion string, totalMembers int) {}
+func (client kubeClient) DeleteReplicaSet(name string)                                        {}
+
+func (client kubeClient) CreateShardedCluster(name string, mongoVersion string, totalMembers int, totalShards int, totalCfgServers int, totalMongos int) {
+}
+func (client kubeClient) DeleteShardedCluster(name string) {}
