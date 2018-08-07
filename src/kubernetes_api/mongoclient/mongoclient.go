@@ -3,6 +3,7 @@ package mongoclient
 import (
 	crd "kubernetes_api/mongodeployments"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -10,7 +11,7 @@ import (
 )
 
 // This file implement all the (CRUD) client methods we need to access our CRD object
-
+//TODO NEED TO SET THE CRDPLURAL DEPENDING ON THE TYPE OF MONGODB INSTANCE!!!
 func CrdClient(cl *rest.RESTClient, scheme *runtime.Scheme, namespace string) *crdclient {
 	return &crdclient{cl: cl, ns: namespace, plural: crd.CRDPlural,
 		codec: runtime.NewParameterCodec(scheme)}
@@ -39,7 +40,7 @@ func (f *crdclient) Update(obj *crd.Deployment) (*crd.Deployment, error) {
 	return &result, err
 }
 
-func (f *crdclient) Delete(name string, options *meta_v1.DeleteOptions) error {
+func (f *crdclient) Delete(name string, options *metav1.DeleteOptions) error {
 	return f.cl.Delete().
 		Namespace(f.ns).Resource(f.plural).
 		Name(name).Body(options).Do().
