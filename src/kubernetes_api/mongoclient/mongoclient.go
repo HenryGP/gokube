@@ -55,7 +55,7 @@ func (f *crdclient) Get(name string) (*crd.Deployment, error) {
 	return &result, err
 }
 
-func (f *crdclient) List(opts meta_v1.ListOptions) (*crd.DeploymentList, error) {
+func (f *crdclient) List(opts metav1.ListOptions) (*crd.DeploymentList, error) {
 	var result crd.DeploymentList
 	err := f.cl.Get().
 		Namespace(f.ns).Resource(f.plural).
