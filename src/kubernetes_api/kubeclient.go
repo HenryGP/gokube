@@ -3,24 +3,28 @@ package kubernetes_api
 import (
 	"flag"
 	"fmt"
+	"kubernetes_api/mongoclient"
 	"log"
 	"os"
 	"path/filepath"
 
+	mongodeployments "kubernetes_api/mongodeployments"
+
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 type kubeClient struct {
-	corev1    *kubernetes.Clientset
-	namespace string
+	corev1      *kubernetes.Clientset
+	namespace   string
+	deployments *crdclient
 }
 
 func homeDir() string {
@@ -40,6 +44,7 @@ func New(nsName string) kubeClient {
 	flag.Parse()
 
 	// use the current context in kubeconfig
+
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err.Error())
@@ -50,12 +55,21 @@ func New(nsName string) kubeClient {
 		panic(err.Error())
 	}
 
-	apiextensionsClient, err := apiextensionsclientset.NewForConfig(config)
+	/*
+		apiextensionsclient, err := apiextensionsclient.NewForConfig(config)
+		if err != nil {
+			panic(err.Error())
+		}*/
+
+	// Create a new clientset which include our CRD schema
+	crdcs, scheme, err := mongodeployments.NewClient(config)
 	if err != nil {
-		panic(err.Error())
+		panic(err)
 	}
 
-	return kubeClient{corev1: clientset, namespace: nsName}
+	deploymentsClient := mongoclient.CrdClient(crdcs, scheme, nsName)
+
+	return kubeClient{corev1: clientset, deployments: deploymentsClient, namespace: nsName}
 }
 
 func (client kubeClient) CreateEnvironment() {

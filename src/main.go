@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"kubernetes_api"
 	"log"
@@ -32,7 +31,6 @@ func main() {
 	config.getConf()
 	//fmt.Println(config.OpsManager["project"])
 	k8s := kubernetes_api.New("enrique-test")
-	fmt.Println("TEST")
 	//k8s.CreateEnvironment()
 	//k8s.DeleteEnvironment()
 }
