@@ -12,7 +12,7 @@ import (
 const (
 	CRDGroup   string = "mongodb.com"
 	CRDVersion string = "v1"
-	CRDPlural  string = ""
+	CRDPlural  string = "mongodbstandalones"
 )
 
 type Deployment struct {

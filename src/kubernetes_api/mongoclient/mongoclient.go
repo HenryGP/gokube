@@ -12,19 +12,19 @@ import (
 
 // This file implement all the (CRUD) client methods we need to access our CRD object
 //TODO NEED TO SET THE CRDPLURAL DEPENDING ON THE TYPE OF MONGODB INSTANCE!!!
-func CrdClient(cl *rest.RESTClient, scheme *runtime.Scheme, namespace string) *crdclient {
-	return &crdclient{cl: cl, ns: namespace, plural: crd.CRDPlural,
+func CrdClient(cl *rest.RESTClient, scheme *runtime.Scheme, namespace string) *Crdclient {
+	return &Crdclient{cl: cl, ns: namespace, plural: crd.CRDPlural,
 		codec: runtime.NewParameterCodec(scheme)}
 }
 
-type crdclient struct {
+type Crdclient struct {
 	cl     *rest.RESTClient
 	ns     string
 	plural string
 	codec  runtime.ParameterCodec
 }
 
-func (f *crdclient) Create(obj *crd.Deployment) (*crd.Deployment, error) {
+func (f *Crdclient) Create(obj *crd.Deployment) (*crd.Deployment, error) {
 	var result crd.Deployment
 	err := f.cl.Post().
 		Namespace(f.ns).Resource(f.plural).
@@ -32,7 +32,7 @@ func (f *crdclient) Create(obj *crd.Deployment) (*crd.Deployment, error) {
 	return &result, err
 }
 
-func (f *crdclient) Update(obj *crd.Deployment) (*crd.Deployment, error) {
+func (f *Crdclient) Update(obj *crd.Deployment) (*crd.Deployment, error) {
 	var result crd.Deployment
 	err := f.cl.Put().
 		Namespace(f.ns).Resource(f.plural).
@@ -40,14 +40,14 @@ func (f *crdclient) Update(obj *crd.Deployment) (*crd.Deployment, error) {
 	return &result, err
 }
 
-func (f *crdclient) Delete(name string, options *metav1.DeleteOptions) error {
+func (f *Crdclient) Delete(name string, options *metav1.DeleteOptions) error {
 	return f.cl.Delete().
 		Namespace(f.ns).Resource(f.plural).
 		Name(name).Body(options).Do().
 		Error()
 }
 
-func (f *crdclient) Get(name string) (*crd.Deployment, error) {
+func (f *Crdclient) Get(name string) (*crd.Deployment, error) {
 	var result crd.Deployment
 	err := f.cl.Get().
 		Namespace(f.ns).Resource(f.plural).
@@ -55,7 +55,7 @@ func (f *crdclient) Get(name string) (*crd.Deployment, error) {
 	return &result, err
 }
 
-func (f *crdclient) List(opts metav1.ListOptions) (*crd.DeploymentList, error) {
+func (f *Crdclient) List(opts metav1.ListOptions) (*crd.DeploymentList, error) {
 	var result crd.DeploymentList
 	err := f.cl.Get().
 		Namespace(f.ns).Resource(f.plural).
@@ -65,6 +65,6 @@ func (f *crdclient) List(opts metav1.ListOptions) (*crd.DeploymentList, error) {
 }
 
 // Create a new List watch for our TPR
-func (f *crdclient) NewListWatch() *cache.ListWatch {
+func (f *Crdclient) NewListWatch() *cache.ListWatch {
 	return cache.NewListWatchFromClient(f.cl, f.plural, f.ns, fields.Everything())
 }

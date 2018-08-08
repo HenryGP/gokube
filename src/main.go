@@ -29,8 +29,11 @@ func (c *conf) getConf() *conf {
 func main() {
 	var config conf
 	config.getConf()
-	//fmt.Println(config.OpsManager["project"])
 	k8s := kubernetes_api.New("enrique-test")
-	//k8s.CreateEnvironment()
+	k8s.CreateEnvironment(config.OpsManager["project"], config.OpsManager["api_user"],
+		config.OpsManager["api_password"], config.OpsManager["base_url"])
+
+	k8s.CreateStandalone("standalonetest", "3.4.10")
+
 	//k8s.DeleteEnvironment()
 }
