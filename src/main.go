@@ -33,7 +33,7 @@ func main() {
 	k8s.CreateEnvironment(config.OpsManager["project"], config.OpsManager["api_user"],
 		config.OpsManager["api_password"], config.OpsManager["base_url"])
 
-	k8s.CreateStandalone("standalonetest", "3.4.10")
+	k8s.CreateStandalone("stand", "3.4.10")
 
 	//k8s.DeleteEnvironment()
 }

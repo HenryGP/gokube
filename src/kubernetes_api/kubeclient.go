@@ -472,6 +472,7 @@ func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
 
 	result, err := client.deployments.Create(deployment)
 	if err != nil {
+		fmt.Println("This is where it came from")
 		log.Output(0, err.Error())
 	} else if err == nil {
 		fmt.Printf("Created: %#v\n", result)
