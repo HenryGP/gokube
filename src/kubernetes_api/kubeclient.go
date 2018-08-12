@@ -14,11 +14,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
@@ -198,7 +197,7 @@ func (client kubeClient) createClusterRole() {
 	rules := make([]rbacv1.PolicyRule, 0, 4)
 
 	rules = append(rules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "create", "update", "delete"},
-		APIGroups: []string{" "},
+		APIGroups: []string{""},
 		Resources: []string{"configmaps", "secrets", "services"}})
 
 	rules = append(rules, rbacv1.PolicyRule{Verbs: []string{"*"},
@@ -410,7 +409,7 @@ func (client kubeClient) createOperator() {
 					Containers: []apiv1.Container{
 						apiv1.Container{
 							Name:            "mongodb-enterprise-operator",
-							Image:           "quay.io/mongodb/mongodb-enterprise-operator:latest",
+							Image:           "quay.io/mongodb/mongodb-enterprise-operator:0.2",
 							ImagePullPolicy: "Always",
 							Env: []apiv1.EnvVar{
 								apiv1.EnvVar{
@@ -419,7 +418,7 @@ func (client kubeClient) createOperator() {
 								},
 								apiv1.EnvVar{
 									Name:  "MONGODB_ENTERPRISE_DATABASE_IMAGE",
-									Value: "quay.io/mongodb/mongodb-enterprise-database:latest",
+									Value: "quay.io/mongodb/mongodb-enterprise-database:0.2",
 								},
 								apiv1.EnvVar{
 									Name:  "IMAGE_PULL_POLICY",
@@ -453,7 +452,7 @@ func (client kubeClient) deleteOperator() {
 }
 
 func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
-	deployment := &mongodeployments.Deployment{
+	deployment := &mongodeployments.MongoDbStandalone{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MongoDbStandalone",
 			APIVersion: "mongodb.com/v1",
@@ -462,7 +461,7 @@ func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
 			Name:      name,
 			Namespace: client.namespace,
 		},
-		Spec: mongodeployments.DeploymentSpec{
+		MongoDbStandaloneSpec: mongodeployments.MongoDbStandaloneSpec{
 			Persistent:  false,
 			Version:     mongoVersion,
 			Credentials: "dredd-om-credentials",
@@ -470,9 +469,8 @@ func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
 		},
 	}
 
-	result, err := client.deployments.Create(deployment)
+	result, err := client.deployments.CreateMongoDbStandalone(deployment)
 	if err != nil {
-		fmt.Println("This is where it came from")
 		log.Output(0, err.Error())
 	} else if err == nil {
 		fmt.Printf("Created: %#v\n", result)
@@ -484,11 +482,107 @@ func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
 
 }
 
-func (client kubeClient) DeleteStandalone(name string) {}
-
-func (client kubeClient) CreateReplicaSet(name string, mongoVersion string, totalMembers int) {}
-func (client kubeClient) DeleteReplicaSet(name string)                                        {}
-
-func (client kubeClient) CreateShardedCluster(name string, mongoVersion string, totalMembers int, totalShards int, totalCfgServers int, totalMongos int) {
+func (client kubeClient) DeleteStandalone(name string) {
+	deleteOptions := &metav1.DeleteOptions{}
+	err := client.deployments.DeleteMongoDbStandalone(name, deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Deleted: %#v\n", name)
+	} else if apierrors.IsGone(err) {
+		fmt.Printf("Doesn't exists: %#v\n", name)
+	} else {
+		panic(err)
+	}
 }
-func (client kubeClient) DeleteShardedCluster(name string) {}
+
+func (client kubeClient) CreateReplicaSet(name string, mongoVersion string, totalMembers int) {
+	deployment := &mongodeployments.MongoDbReplicaSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MongoDbReplicaSet",
+			APIVersion: "mongodb.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: client.namespace,
+		},
+		MongoDbReplicaSetSpec: mongodeployments.MongoDbReplicaSetSpec{
+			Persistent:  false,
+			Version:     mongoVersion,
+			Credentials: "dredd-om-credentials",
+			Project:     "dredd-project",
+			Members:     totalMembers,
+		},
+	}
+
+	result, err := client.deployments.CreateMongoDbReplicaSet(deployment)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Created: %#v\n", result)
+	} else if apierrors.IsAlreadyExists(err) {
+		fmt.Printf("Already exists: %#v\n", result)
+	} else {
+		panic(err)
+	}
+}
+func (client kubeClient) DeleteReplicaSet(name string) {
+	deleteOptions := &metav1.DeleteOptions{}
+	err := client.deployments.DeleteMongoDbReplicaSet(name, deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Deleted: %#v\n", name)
+	} else if apierrors.IsGone(err) {
+		fmt.Printf("Doesn't exists: %#v\n", name)
+	} else {
+		panic(err)
+	}
+}
+
+func (client kubeClient) CreateShardedCluster(name string, mongoVersion string, totalMembersPerShard int, totalShards int, totalCfgServers int, totalMongos int) {
+	deployment := &mongodeployments.MongoDbShardedCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MongoDbReplicaSet",
+			APIVersion: "mongodb.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: client.namespace,
+		},
+		MongoDbShardedClusterSpec: mongodeployments.MongoDbShardedClusterSpec{
+			Persistent:           false,
+			Version:              mongoVersion,
+			Credentials:          "dredd-om-credentials",
+			Project:              "dredd-project",
+			ConfigServerCount:    totalCfgServers,
+			ShardCount:           totalShards,
+			MongosCount:          totalMongos,
+			MongodsPerShardCount: totalMembersPerShard,
+		},
+	}
+
+	result, err := client.deployments.CreateMongoDbShardedCluster(deployment)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Created: %#v\n", result)
+	} else if apierrors.IsAlreadyExists(err) {
+		fmt.Printf("Already exists: %#v\n", result)
+	} else {
+		panic(err)
+	}
+}
+func (client kubeClient) DeleteShardedCluster(name string) {
+	deleteOptions := &metav1.DeleteOptions{}
+	err := client.deployments.DeleteMongoDbShardedCluster(name, deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Deleted: %#v\n", name)
+	} else if apierrors.IsGone(err) {
+		fmt.Printf("Doesn't exists: %#v\n", name)
+	} else {
+		panic(err)
+	}
+}

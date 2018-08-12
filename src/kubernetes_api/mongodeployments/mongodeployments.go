@@ -1,4 +1,3 @@
-//REFERENCE! https://www.martin-helmich.de/en/blog/kubernetes-crd-client.html
 package mongodeployments
 
 import (
@@ -12,62 +11,163 @@ import (
 const (
 	CRDGroup   string = "mongodb.com"
 	CRDVersion string = "v1"
-	CRDPlural  string = "mongodbstandalones"
 )
 
-type Deployment struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
-	Spec              DeploymentSpec `json:"spec"`
+type MongoDbStandalone struct {
+	metav1.TypeMeta       `json:",inline"`
+	metav1.ObjectMeta     `json:"metadata"`
+	MongoDbStandaloneSpec `json:"spec"`
 }
 
-type DeploymentSpec struct {
+type MongoDbStandaloneSpec struct {
+	Persistent  bool   `json:"persistent"`
+	Version     string `json:"version"`
+	Credentials string `json:"credentials"`
+	Project     string `json:"project"`
+}
+
+type MongoDbStandaloneList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+	Items           []MongoDbStandalone `json:"items"`
+}
+
+type MongoDbReplicaSet struct {
+	metav1.TypeMeta       `json:",inline"`
+	metav1.ObjectMeta     `json:"metadata"`
+	MongoDbReplicaSetSpec `json:"spec"`
+}
+
+type MongoDbReplicaSetSpec struct {
+	Persistent  bool   `json:"persistent"`
+	Version     string `json:"version"`
+	Credentials string `json:"credentials"`
+	Project     string `json:"project"`
+	Members     int    `json:"members"`
+}
+
+type MongoDbReplicaSetList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+	Items           []MongoDbReplicaSet `json:"items"`
+}
+
+//Cluster
+
+type MongoDbShardedCluster struct {
+	metav1.TypeMeta           `json:",inline"`
+	metav1.ObjectMeta         `json:"metadata"`
+	MongoDbShardedClusterSpec `json:"spec"`
+}
+
+type MongoDbShardedClusterSpec struct {
 	Persistent           bool   `json:"persistent"`
 	Version              string `json:"version"`
 	Credentials          string `json:"credentials"`
 	Project              string `json:"project"`
-	Members              string `json:"members,omitempty"`              //Replica Sets
-	ShardCount           string `json:"shardCount,omitempty"`           //Sharded Cluster
-	MongodsPerShardCount string `json:"mongodsPerShardCount,omitempty"` //Sharded Cluster
-	MongosCount          string `json:"mongosCount,omitempty"`          //Sharded Cluster
-	ConfigServerCount    string `json:"configServerCount,omitempty"`    //Sharded Cluster
+	ConfigServerCount    int    `json:"configServerCount"`
+	ShardCount           int    `json:"shardCount"`
+	MongosCount          int    `json:"mongosCount"`
+	MongodsPerShardCount int    `json:"mongodsPerShardCount"`
 }
 
-type DeploymentList struct {
+type MongoDbShardedClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-	Items           []Deployment `json:"items"`
+	Items           []MongoDbShardedCluster `json:"items"`
 }
 
-func (in *Deployment) DeepCopyInto(out *Deployment) {
+func (in *MongoDbShardedCluster) DeepCopyInto(out *MongoDbShardedCluster) {
 	out.TypeMeta = in.TypeMeta
 	out.ObjectMeta = in.ObjectMeta
-	out.Spec = DeploymentSpec{
-		Persistent:           in.Spec.Persistent,
-		Version:              in.Spec.Version,
-		Credentials:          in.Spec.Credentials,
-		Project:              in.Spec.Project,
-		Members:              in.Spec.Members,
-		ShardCount:           in.Spec.ShardCount,
-		MongodsPerShardCount: in.Spec.MongodsPerShardCount,
-		MongosCount:          in.Spec.MongosCount,
-		ConfigServerCount:    in.Spec.ConfigServerCount,
+	out.MongoDbShardedClusterSpec = MongoDbShardedClusterSpec{
+		Persistent:           in.MongoDbShardedClusterSpec.Persistent,
+		Version:              in.MongoDbShardedClusterSpec.Version,
+		Credentials:          in.MongoDbShardedClusterSpec.Credentials,
+		Project:              in.MongoDbShardedClusterSpec.Project,
+		ConfigServerCount:    in.MongoDbShardedClusterSpec.ConfigServerCount,
+		ShardCount:           in.MongoDbShardedClusterSpec.ShardCount,
+		MongosCount:          in.MongoDbShardedClusterSpec.MongosCount,
+		MongodsPerShardCount: in.MongoDbShardedClusterSpec.MongodsPerShardCount,
 	}
 }
 
-func (in *Deployment) DeepCopyObject() runtime.Object {
-	out := Deployment{}
+func (in *MongoDbShardedCluster) DeepCopyObject() runtime.Object {
+	out := MongoDbShardedCluster{}
+	in.DeepCopyInto(&out)
+	return &out
+}
+
+func (in *MongoDbShardedClusterList) DeepCopyObject() runtime.Object {
+	out := MongoDbShardedClusterList{}
+	out.TypeMeta = in.TypeMeta
+	out.ListMeta = in.ListMeta
+	if in.Items != nil {
+		out.Items = make([]MongoDbShardedCluster, len(in.Items))
+		for i := range in.Items {
+			in.Items[i].DeepCopyInto(&out.Items[i])
+		}
+	}
+	return &out
+}
+
+//
+
+func (in *MongoDbReplicaSet) DeepCopyInto(out *MongoDbReplicaSet) {
+	out.TypeMeta = in.TypeMeta
+	out.ObjectMeta = in.ObjectMeta
+	out.MongoDbReplicaSetSpec = MongoDbReplicaSetSpec{
+		Persistent:  in.MongoDbReplicaSetSpec.Persistent,
+		Version:     in.MongoDbReplicaSetSpec.Version,
+		Credentials: in.MongoDbReplicaSetSpec.Credentials,
+		Project:     in.MongoDbReplicaSetSpec.Project,
+		Members:     in.MongoDbReplicaSetSpec.Members,
+	}
+}
+
+func (in *MongoDbReplicaSet) DeepCopyObject() runtime.Object {
+	out := MongoDbReplicaSet{}
+	in.DeepCopyInto(&out)
+	return &out
+}
+
+func (in *MongoDbReplicaSetList) DeepCopyObject() runtime.Object {
+	out := MongoDbReplicaSetList{}
+	out.TypeMeta = in.TypeMeta
+	out.ListMeta = in.ListMeta
+	if in.Items != nil {
+		out.Items = make([]MongoDbReplicaSet, len(in.Items))
+		for i := range in.Items {
+			in.Items[i].DeepCopyInto(&out.Items[i])
+		}
+	}
+	return &out
+}
+
+func (in *MongoDbStandalone) DeepCopyInto(out *MongoDbStandalone) {
+	out.TypeMeta = in.TypeMeta
+	out.ObjectMeta = in.ObjectMeta
+	out.MongoDbStandaloneSpec = MongoDbStandaloneSpec{
+		Persistent:  in.MongoDbStandaloneSpec.Persistent,
+		Version:     in.MongoDbStandaloneSpec.Version,
+		Credentials: in.MongoDbStandaloneSpec.Credentials,
+		Project:     in.MongoDbStandaloneSpec.Project,
+	}
+}
+
+func (in *MongoDbStandalone) DeepCopyObject() runtime.Object {
+	out := MongoDbStandalone{}
 	in.DeepCopyInto(&out)
 	return &out
 }
 
 // DeepCopyObject returns a generically typed copy of an object
-func (in *DeploymentList) DeepCopyObject() runtime.Object {
-	out := DeploymentList{}
+func (in *MongoDbStandaloneList) DeepCopyObject() runtime.Object {
+	out := MongoDbStandaloneList{}
 	out.TypeMeta = in.TypeMeta
 	out.ListMeta = in.ListMeta
 	if in.Items != nil {
-		out.Items = make([]Deployment, len(in.Items))
+		out.Items = make([]MongoDbStandalone, len(in.Items))
 		for i := range in.Items {
 			in.Items[i].DeepCopyInto(&out.Items[i])
 		}
@@ -80,8 +180,12 @@ var SchemeGroupVersion = schema.GroupVersion{Group: CRDGroup, Version: CRDVersio
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Deployment{},
-		&DeploymentList{},
+		&MongoDbStandalone{},
+		&MongoDbStandaloneList{},
+		&MongoDbReplicaSet{},
+		&MongoDbReplicaSetList{},
+		&MongoDbShardedCluster{},
+		&MongoDbShardedClusterList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
