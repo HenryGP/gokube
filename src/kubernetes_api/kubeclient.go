@@ -1,15 +1,20 @@
 package kubernetes_api
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
+	"kubernetes_api/mongoclient"
 	"log"
 	"os"
 	"path/filepath"
 
+	mongodeployments "kubernetes_api/mongodeployments"
+
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -18,8 +23,9 @@ import (
 )
 
 type kubeClient struct {
-	corev1    *kubernetes.Clientset
-	namespace string
+	corev1      *kubernetes.Clientset
+	namespace   string
+	deployments *mongoclient.Crdclient
 }
 
 func homeDir() string {
@@ -39,6 +45,7 @@ func New(nsName string) kubeClient {
 	flag.Parse()
 
 	// use the current context in kubeconfig
+
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err.Error())
@@ -49,10 +56,17 @@ func New(nsName string) kubeClient {
 		panic(err.Error())
 	}
 
-	return kubeClient{corev1: clientset, namespace: nsName}
+	crdcs, scheme, err := mongodeployments.NewClient(config)
+	if err != nil {
+		panic(err)
+	}
+
+	deploymentsClient := mongoclient.CrdClient(crdcs, scheme, nsName)
+
+	return kubeClient{corev1: clientset, deployments: deploymentsClient, namespace: nsName}
 }
 
-func (client kubeClient) CreateEnvironment() {
+func (client kubeClient) CreateEnvironment(project string, apiUser string, apiKey string, baseURL string) {
 	var err error
 	getOpts := metav1.GetOptions{}
 
@@ -80,7 +94,17 @@ func (client kubeClient) CreateEnvironment() {
 		client.createClusterRoleBinding()
 	}
 
-	//TODO Create config map and secret
+	_, err = client.corev1.CoreV1().ConfigMaps(client.namespace).Get("dredd-project", getOpts)
+	if err != nil {
+		log.Output(0, err.Error())
+		client.createConfigMap(project, baseURL)
+	}
+
+	_, err = client.corev1.CoreV1().Secrets(client.namespace).Get("dredd-om-credentials", getOpts)
+	if err != nil {
+		log.Output(0, err.Error())
+		client.createSecret(apiUser, apiKey)
+	}
 
 	_, err = client.corev1.AppsV1().Deployments(client.namespace).Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
@@ -94,7 +118,26 @@ func (client kubeClient) DeleteEnvironment() {
 	var err error
 	getOpts := metav1.GetOptions{}
 
-	//TODO Delete config map and secret
+	_, err = client.corev1.CoreV1().Secrets(client.namespace).Get("dredd-om-credentials", getOpts)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else {
+		client.deleteSecret()
+	}
+
+	_, err = client.corev1.CoreV1().ConfigMaps(client.namespace).Get("dredd-project", getOpts)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else {
+		client.deleteConfigMap()
+	}
+
+	_, err = client.corev1.AppsV1().Deployments(client.namespace).Get("mongodb-enterprise-operator", getOpts)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else {
+		client.deleteOperator()
+	}
 
 	_, err = client.corev1.AppsV1().Deployments(client.namespace).Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
@@ -130,6 +173,7 @@ func (client kubeClient) DeleteEnvironment() {
 	} else {
 		client.deleteNamespace(client.namespace)
 	}
+
 }
 
 func (client kubeClient) createNamespace(ns string) {
@@ -153,7 +197,7 @@ func (client kubeClient) createClusterRole() {
 	rules := make([]rbacv1.PolicyRule, 0, 4)
 
 	rules = append(rules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "create", "update", "delete"},
-		APIGroups: []string{" "},
+		APIGroups: []string{""},
 		Resources: []string{"configmaps", "secrets", "services"}})
 
 	rules = append(rules, rbacv1.PolicyRule{Verbs: []string{"*"},
@@ -245,6 +289,85 @@ func (client kubeClient) deleteClusterRoleBinding() {
 	}
 }
 
+func (client kubeClient) createConfigMap(projectId string, baseUrl string) {
+	configMap := &apiv1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dredd-project",
+			Namespace: client.namespace,
+		},
+		Data: map[string]string{
+			"projectId": projectId,
+			"baseUrl":   baseUrl,
+		},
+	}
+
+	result, err := client.corev1.CoreV1().ConfigMaps(client.namespace).Create(configMap)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Printf("Created config map %q.\n", result.GetObjectMeta().GetName())
+}
+
+func (client kubeClient) deleteConfigMap() {
+	deleteOptions := metav1.DeleteOptions{}
+	err := client.corev1.Core().ConfigMaps(client.namespace).Delete("dredd-project", &deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	}
+}
+
+func (client kubeClient) createSecret(username string, key string) {
+
+	encodedUser := base64.StdEncoding.EncodeToString([]byte(username))
+	encodedKey := base64.StdEncoding.EncodeToString([]byte(key))
+
+	decodedUser, err := base64.StdEncoding.DecodeString(encodedUser)
+	if err != nil {
+		log.Output(0, err.Error())
+		return
+	}
+
+	decodedKey, err := base64.StdEncoding.DecodeString(encodedKey)
+	if err != nil {
+		log.Output(0, err.Error())
+		return
+	}
+
+	secret := &apiv1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dredd-om-credentials",
+			Namespace: client.namespace,
+		},
+		Type: "from-literal",
+		Data: map[string][]byte{
+			"user":         decodedUser,
+			"publicApiKey": decodedKey,
+		},
+	}
+
+	result, err := client.corev1.CoreV1().Secrets(client.namespace).Create(secret)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Printf("Created secret %q.\n", result.GetObjectMeta().GetName())
+}
+
+func (client kubeClient) deleteSecret() {
+	deleteOptions := metav1.DeleteOptions{}
+	err := client.corev1.Core().Secrets(client.namespace).Delete("dredd-om-credentials", &deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	}
+}
+
 func (client kubeClient) ListNamespaces() {
 	nsList, err := client.corev1.CoreV1().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
@@ -286,7 +409,7 @@ func (client kubeClient) createOperator() {
 					Containers: []apiv1.Container{
 						apiv1.Container{
 							Name:            "mongodb-enterprise-operator",
-							Image:           "quay.io/mongodb/mongodb-enterprise-operator:latest",
+							Image:           "quay.io/mongodb/mongodb-enterprise-operator:0.2",
 							ImagePullPolicy: "Always",
 							Env: []apiv1.EnvVar{
 								apiv1.EnvVar{
@@ -295,7 +418,7 @@ func (client kubeClient) createOperator() {
 								},
 								apiv1.EnvVar{
 									Name:  "MONGODB_ENTERPRISE_DATABASE_IMAGE",
-									Value: "quay.io/mongodb/mongodb-enterprise-database:latest",
+									Value: "quay.io/mongodb/mongodb-enterprise-database:0.2",
 								},
 								apiv1.EnvVar{
 									Name:  "IMAGE_PULL_POLICY",
@@ -325,5 +448,141 @@ func (client kubeClient) deleteOperator() {
 	err := client.corev1.AppsV1().Deployments(client.namespace).Delete("mongodb-enterprise-operator", deleteOptions)
 	if err != nil {
 		log.Output(0, err.Error())
+	}
+}
+
+func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
+	deployment := &mongodeployments.MongoDbStandalone{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MongoDbStandalone",
+			APIVersion: "mongodb.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: client.namespace,
+		},
+		MongoDbStandaloneSpec: mongodeployments.MongoDbStandaloneSpec{
+			Persistent:  false,
+			Version:     mongoVersion,
+			Credentials: "dredd-om-credentials",
+			Project:     "dredd-project",
+		},
+	}
+
+	result, err := client.deployments.CreateMongoDbStandalone(deployment)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Created: %#v\n", result)
+	} else if apierrors.IsAlreadyExists(err) {
+		fmt.Printf("Already exists: %#v\n", result)
+	} else {
+		panic(err)
+	}
+
+}
+
+func (client kubeClient) DeleteStandalone(name string) {
+	deleteOptions := &metav1.DeleteOptions{}
+	err := client.deployments.DeleteMongoDbStandalone(name, deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Deleted: %#v\n", name)
+	} else if apierrors.IsGone(err) {
+		fmt.Printf("Doesn't exists: %#v\n", name)
+	} else {
+		panic(err)
+	}
+}
+
+func (client kubeClient) CreateReplicaSet(name string, mongoVersion string, totalMembers int) {
+	deployment := &mongodeployments.MongoDbReplicaSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MongoDbReplicaSet",
+			APIVersion: "mongodb.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: client.namespace,
+		},
+		MongoDbReplicaSetSpec: mongodeployments.MongoDbReplicaSetSpec{
+			Persistent:  false,
+			Version:     mongoVersion,
+			Credentials: "dredd-om-credentials",
+			Project:     "dredd-project",
+			Members:     totalMembers,
+		},
+	}
+
+	result, err := client.deployments.CreateMongoDbReplicaSet(deployment)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Created: %#v\n", result)
+	} else if apierrors.IsAlreadyExists(err) {
+		fmt.Printf("Already exists: %#v\n", result)
+	} else {
+		panic(err)
+	}
+}
+func (client kubeClient) DeleteReplicaSet(name string) {
+	deleteOptions := &metav1.DeleteOptions{}
+	err := client.deployments.DeleteMongoDbReplicaSet(name, deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Deleted: %#v\n", name)
+	} else if apierrors.IsGone(err) {
+		fmt.Printf("Doesn't exists: %#v\n", name)
+	} else {
+		panic(err)
+	}
+}
+
+func (client kubeClient) CreateShardedCluster(name string, mongoVersion string, totalMembersPerShard int, totalShards int, totalCfgServers int, totalMongos int) {
+	deployment := &mongodeployments.MongoDbShardedCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MongoDbReplicaSet",
+			APIVersion: "mongodb.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: client.namespace,
+		},
+		MongoDbShardedClusterSpec: mongodeployments.MongoDbShardedClusterSpec{
+			Persistent:           false,
+			Version:              mongoVersion,
+			Credentials:          "dredd-om-credentials",
+			Project:              "dredd-project",
+			ConfigServerCount:    totalCfgServers,
+			ShardCount:           totalShards,
+			MongosCount:          totalMongos,
+			MongodsPerShardCount: totalMembersPerShard,
+		},
+	}
+
+	result, err := client.deployments.CreateMongoDbShardedCluster(deployment)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Created: %#v\n", result)
+	} else if apierrors.IsAlreadyExists(err) {
+		fmt.Printf("Already exists: %#v\n", result)
+	} else {
+		panic(err)
+	}
+}
+func (client kubeClient) DeleteShardedCluster(name string) {
+	deleteOptions := &metav1.DeleteOptions{}
+	err := client.deployments.DeleteMongoDbShardedCluster(name, deleteOptions)
+	if err != nil {
+		log.Output(0, err.Error())
+	} else if err == nil {
+		fmt.Printf("Deleted: %#v\n", name)
+	} else if apierrors.IsGone(err) {
+		fmt.Printf("Doesn't exists: %#v\n", name)
+	} else {
+		panic(err)
 	}
 }
