@@ -11,6 +11,7 @@ import (
 
 	mongodeployments "kubernetes_api/mongodeployments"
 
+	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -48,17 +49,17 @@ func New(nsName string) kubeClient {
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 
 	crdcs, scheme, err := mongodeployments.NewClient(config)
 	if err != nil {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 
 	deploymentsClient := mongoclient.CrdClient(crdcs, scheme, nsName)
@@ -72,43 +73,43 @@ func (client kubeClient) CreateEnvironment(project string, apiUser string, apiKe
 
 	_, err = client.corev1.CoreV1().Namespaces().Get(client.namespace, getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createNamespace(client.namespace)
 	}
 
 	_, err = client.corev1.RbacV1().ClusterRoles().Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createClusterRole()
 	}
 
 	_, err = client.corev1.CoreV1().ServiceAccounts(client.namespace).Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createServiceAccount()
 	}
 
 	_, err = client.corev1.RbacV1().ClusterRoleBindings().Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createClusterRoleBinding()
 	}
 
 	_, err = client.corev1.CoreV1().ConfigMaps(client.namespace).Get("dredd-project", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createConfigMap(project, baseURL)
 	}
 
 	_, err = client.corev1.CoreV1().Secrets(client.namespace).Get("dredd-om-credentials", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createSecret(apiUser, apiKey)
 	}
 
 	_, err = client.corev1.AppsV1().Deployments(client.namespace).Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 		client.createOperator()
 	}
 
@@ -120,56 +121,49 @@ func (client kubeClient) DeleteEnvironment() {
 
 	_, err = client.corev1.CoreV1().Secrets(client.namespace).Get("dredd-om-credentials", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteSecret()
 	}
 
 	_, err = client.corev1.CoreV1().ConfigMaps(client.namespace).Get("dredd-project", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteConfigMap()
 	}
 
 	_, err = client.corev1.AppsV1().Deployments(client.namespace).Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
-	} else {
-		client.deleteOperator()
-	}
-
-	_, err = client.corev1.AppsV1().Deployments(client.namespace).Get("mongodb-enterprise-operator", getOpts)
-	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteOperator()
 	}
 
 	_, err = client.corev1.RbacV1().ClusterRoleBindings().Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteClusterRoleBinding()
 	}
 
 	_, err = client.corev1.CoreV1().ServiceAccounts(client.namespace).Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteServiceAccount()
 	}
 
 	_, err = client.corev1.RbacV1().ClusterRoles().Get("mongodb-enterprise-operator", getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteClusterRole()
 	}
 
 	_, err = client.corev1.CoreV1().Namespaces().Get(client.namespace, getOpts)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else {
 		client.deleteNamespace(client.namespace)
 	}
@@ -180,7 +174,7 @@ func (client kubeClient) createNamespace(ns string) {
 	nsSpec := &apiv1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
 	result, err := client.corev1.CoreV1().Namespaces().Create(nsSpec)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 	fmt.Printf("Created namespace %q.\n", result.GetObjectMeta().GetName())
 }
@@ -189,7 +183,7 @@ func (client kubeClient) deleteNamespace(ns string) {
 	deleteOptions := metav1.DeleteOptions{}
 	err := client.corev1.CoreV1().Namespaces().Delete(ns, &deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 	}
 }
 
@@ -225,7 +219,7 @@ func (client kubeClient) createClusterRole() {
 
 	result, err := client.corev1.RbacV1().ClusterRoles().Create(clusterRoleSpec)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 	fmt.Printf("Created cluster role %q.\n", result.GetObjectMeta().GetName())
 }
@@ -234,7 +228,7 @@ func (client kubeClient) deleteClusterRole() {
 	deleteOptions := metav1.DeleteOptions{}
 	err := client.corev1.RbacV1().ClusterRoles().Delete("mongodb-enterprise-operator", &deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 	}
 }
 
@@ -246,7 +240,7 @@ func (client kubeClient) createServiceAccount() {
 
 	result, err := client.corev1.CoreV1().ServiceAccounts(client.namespace).Create(&serviceAccount)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 	fmt.Printf("Created service account %q.\n", result.GetObjectMeta().GetName())
 }
@@ -255,7 +249,7 @@ func (client kubeClient) deleteServiceAccount() {
 	deleteOptions := metav1.DeleteOptions{}
 	err := client.corev1.CoreV1().ServiceAccounts(client.namespace).Delete("mongodb-enterprise-operator", &deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 	}
 }
 
@@ -276,7 +270,7 @@ func (client kubeClient) createClusterRoleBinding() {
 
 	result, err := client.corev1.RbacV1().ClusterRoleBindings().Create(&clusterRoleBindingSpec)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 	fmt.Printf("Created cluster role binding %q.\n", result.GetObjectMeta().GetName())
 }
@@ -285,7 +279,7 @@ func (client kubeClient) deleteClusterRoleBinding() {
 	deleteOptions := metav1.DeleteOptions{}
 	err := client.corev1.RbacV1().ClusterRoleBindings().Delete("mongodb-enterprise-operator", &deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 	}
 }
 
@@ -307,7 +301,7 @@ func (client kubeClient) createConfigMap(projectId string, baseUrl string) {
 
 	result, err := client.corev1.CoreV1().ConfigMaps(client.namespace).Create(configMap)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Warn(err.Error())
 	}
 	fmt.Printf("Created config map %q.\n", result.GetObjectMeta().GetName())
 }
@@ -316,7 +310,7 @@ func (client kubeClient) deleteConfigMap() {
 	deleteOptions := metav1.DeleteOptions{}
 	err := client.corev1.Core().ConfigMaps(client.namespace).Delete("dredd-project", &deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 	}
 }
 
@@ -355,7 +349,7 @@ func (client kubeClient) createSecret(username string, key string) {
 
 	result, err := client.corev1.CoreV1().Secrets(client.namespace).Create(secret)
 	if err != nil {
-		panic(err.Error())
+		zap.S().Panic(err.Error())
 	}
 	fmt.Printf("Created secret %q.\n", result.GetObjectMeta().GetName())
 }
@@ -364,7 +358,7 @@ func (client kubeClient) deleteSecret() {
 	deleteOptions := metav1.DeleteOptions{}
 	err := client.corev1.Core().Secrets(client.namespace).Delete("dredd-om-credentials", &deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Warn(err.Error())
 	}
 }
 
@@ -438,7 +432,7 @@ func (client kubeClient) createOperator() {
 
 	result, err := client.corev1.AppsV1().Deployments(client.namespace).Create(deployment)
 	if err != nil {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 	fmt.Printf("Created deployment %q.\n", result.GetObjectMeta().GetName())
 }
@@ -447,7 +441,7 @@ func (client kubeClient) deleteOperator() {
 	deleteOptions := &metav1.DeleteOptions{}
 	err := client.corev1.AppsV1().Deployments(client.namespace).Delete("mongodb-enterprise-operator", deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	}
 }
 
@@ -471,13 +465,13 @@ func (client kubeClient) CreateStandalone(name string, mongoVersion string) {
 
 	result, err := client.deployments.CreateMongoDbStandalone(deployment)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else if err == nil {
-		fmt.Printf("Created: %#v\n", result)
+		zap.S().Infof("Created: %#v\n", result)
 	} else if apierrors.IsAlreadyExists(err) {
-		fmt.Printf("Already exists: %#v\n", result)
+		zap.S().Warnf("Already exists: %#v\n", result)
 	} else {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 
 }
@@ -486,13 +480,13 @@ func (client kubeClient) DeleteStandalone(name string) {
 	deleteOptions := &metav1.DeleteOptions{}
 	err := client.deployments.DeleteMongoDbStandalone(name, deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else if err == nil {
-		fmt.Printf("Deleted: %#v\n", name)
+		zap.S().Infof("Deleted: %#v\n", name)
 	} else if apierrors.IsGone(err) {
-		fmt.Printf("Doesn't exists: %#v\n", name)
+		zap.S().Warnf("Doesn't exists: %#v\n", name)
 	} else {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 }
 
@@ -517,26 +511,26 @@ func (client kubeClient) CreateReplicaSet(name string, mongoVersion string, tota
 
 	result, err := client.deployments.CreateMongoDbReplicaSet(deployment)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else if err == nil {
-		fmt.Printf("Created: %#v\n", result)
+		zap.S().Infof("Created: %#v\n", result)
 	} else if apierrors.IsAlreadyExists(err) {
-		fmt.Printf("Already exists: %#v\n", result)
+		zap.S().Warnf("Already exists: %#v\n", result)
 	} else {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 }
 func (client kubeClient) DeleteReplicaSet(name string) {
 	deleteOptions := &metav1.DeleteOptions{}
 	err := client.deployments.DeleteMongoDbReplicaSet(name, deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else if err == nil {
-		fmt.Printf("Deleted: %#v\n", name)
+		zap.S().Infof("Deleted: %#v\n", name)
 	} else if apierrors.IsGone(err) {
-		fmt.Printf("Doesn't exists: %#v\n", name)
+		zap.S().Warnf("Doesn't exists: %#v\n", name)
 	} else {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 }
 
@@ -564,25 +558,25 @@ func (client kubeClient) CreateShardedCluster(name string, mongoVersion string, 
 
 	result, err := client.deployments.CreateMongoDbShardedCluster(deployment)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else if err == nil {
-		fmt.Printf("Created: %#v\n", result)
+		zap.S().Infof("Created: %#v\n", result)
 	} else if apierrors.IsAlreadyExists(err) {
-		fmt.Printf("Already exists: %#v\n", result)
+		zap.S().Warnf("Already exists: %#v\n", result)
 	} else {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 }
 func (client kubeClient) DeleteShardedCluster(name string) {
 	deleteOptions := &metav1.DeleteOptions{}
 	err := client.deployments.DeleteMongoDbShardedCluster(name, deleteOptions)
 	if err != nil {
-		log.Output(0, err.Error())
+		zap.S().Error(err.Error())
 	} else if err == nil {
-		fmt.Printf("Deleted: %#v\n", name)
+		zap.S().Infof("Deleted: %#v\n", name)
 	} else if apierrors.IsGone(err) {
-		fmt.Printf("Doesn't exists: %#v\n", name)
+		zap.S().Warnf("Doesn't exists: %#v\n", name)
 	} else {
-		panic(err)
+		zap.S().Panic(err.Error())
 	}
 }
