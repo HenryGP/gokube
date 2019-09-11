@@ -1,73 +1,55 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
-	"kubernetes_api"
-	"path/filepath"
+	"api/types/v1"
+	"flag"
+	"log"
 
-	"go.uber.org/zap"
-
-	yaml "gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
-var log *zap.SugaredLogger
+var kubeconfig string
 
-type conf struct {
-	OpsManager map[string]string `yaml:"ops_manager"`
-	Kubernetes map[string]string `yaml:"kubernetes"`
-	Logger     string            `yaml:"logger"`
-}
-
-func (c *conf) getConf() *conf {
-	filename, _ := filepath.Abs("config.yaml")
-	confFile, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Error("Error when opening config file: #%v ", err)
-	}
-	err = yaml.Unmarshal(confFile, c)
-	if err != nil {
-		log.Fatalf("Unmarshal: %v", err)
-	}
-	return c
-}
-
-func initLogger(preset string) {
-	var logger *zap.Logger
-	var err error
-
-	switch preset {
-	case "PROD":
-		logger, err = zap.NewProduction()
-	case "DEV":
-		logger, err = zap.NewDevelopment()
-	}
-
-	if err != nil {
-		fmt.Println("Failed to create logger, will use the default one")
-		fmt.Println(err)
-	}
-
-	zap.ReplaceGlobals(logger)
-	log = zap.S()
+func init() {
+	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to Kubernetes config file")
+	flag.Parse()
 }
 
 func main() {
-	var config conf
-	config.getConf()
 
-	initLogger(config.Logger)
+	var config *rest.Config
+	var err error
 
-	k8s := kubernetes_api.New(config.Kubernetes["namespace"])
+	if kubeconfig == "" {
+		log.Printf("using in-cluster configuration")
+		config, err = rest.InClusterConfig()
+	} else {
+		log.Printf("using configuration from '%s'", kubeconfig)
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	}
 
-	k8s.CreateEnvironment(config.OpsManager["project"], config.OpsManager["api_user"], config.OpsManager["api_password"], config.OpsManager["base_url"])
+	if err != nil {
+		panic(err)
+	}
 
-	//k8s.CreateStandalone("stand", "3.4.10")
-	//k8s.CreateReplicaSet("rs", "4.0.0", 3)
-	//k8s.CreateShardedCluster("shcluster", "3.6.2", 1, 3, 3, 2)
+	v1.AddToScheme(scheme.Scheme)
 
-	//k8s.DeleteStandalone("stand")
-	//k8s.DeleteReplicaSet("rs")
-	//k8s.DeleteShardedCluster("shcluster")
-	//k8s.DeleteEnvironment()
+	crdConfig := *config
+	crdConfig.ContentConfig.GroupVersion = &schema.GroupVersion{Group: v1.GroupName, Version: v1.GroupVersion}
+	crdConfig.APIPath = "/apis"
+	crdConfig.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+	crdConfig.UserAgent = rest.DefaultKubernetesUserAgent()
+
+	/*
+		mongodbs, err := clientSet.MongoDBs("ts-emea").List(metav1.ListOptions{})
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("mongodbs found: %+v\n", mongodbs) */
 }
