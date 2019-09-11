@@ -10,9 +10,6 @@ import (
 	logging "logging"
 
 	yaml "gopkg.in/yaml.v2"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
@@ -74,20 +71,19 @@ func main() {
 
 	v1.AddToScheme(scheme.Scheme)
 
-	crdConfig := *config
-	crdConfig.ContentConfig.GroupVersion = &schema.GroupVersion{Group: v1.GroupName, Version: v1.GroupVersion}
-	crdConfig.APIPath = "/apis"
-	crdConfig.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
-	crdConfig.UserAgent = rest.DefaultKubernetesUserAgent()
-
 	clientSet, err := clientV1.NewForConfig(config)
 	if err != nil {
 		logger.Panic(err.Error())
 	}
-	mongodbs, err := clientSet.MongoDBs("ts-emea").List(metav1.ListOptions{})
-	if err != nil {
-		logger.Panic(err.Error())
-	}
 
-	logger.Infof("mongodbs found: %+v\n", mongodbs)
+	clientSet.Core(appConfig.Kubernetes["namespace"]).
+		CreateConfigMap(appConfig.Kubernetes["project"], appConfig.Kubernetes["base_url"])
+
+	/*
+		mongodbs, err := clientSet.MongoDBs(appConfig.Kubernetes["namespace"]).List(metav1.ListOptions{})
+		if err != nil {
+			logger.Panic(err.Error())
+		}
+
+		logger.Infof("mongodbs found: %+v\n", mongodbs)*/
 }
