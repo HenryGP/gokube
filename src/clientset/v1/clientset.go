@@ -3,6 +3,7 @@ package v1
 import (
 	"api/types/v1"
 
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -26,9 +27,10 @@ func NewForConfig(c *rest.Config) (*MongoDBV1Client, error) {
 
 	client, err := rest.RESTClientFor(&config)
 	if err != nil {
+		zap.S().Debugf("Failed to initialise clientset for MongoDB CRD")
 		return nil, err
 	}
-
+	zap.S().Debugf("Clientset for MongoDB CRD initialised")
 	return &MongoDBV1Client{restClient: client}, nil
 }
 

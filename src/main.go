@@ -2,9 +2,15 @@ package main
 
 import (
 	"api/types/v1"
+	clientV1 "clientset/v1"
 	"flag"
-	"log"
+	"io/ioutil"
+	"path/filepath"
 
+	logging "logging"
+
+	yaml "gopkg.in/yaml.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -15,26 +21,55 @@ import (
 
 var kubeconfig string
 
+type AppConf struct {
+	OpsManager map[string]string `yaml:"ops_manager"`
+	Kubernetes map[string]string `yaml:"kubernetes"`
+	Logger     string            `yaml:"logger"`
+}
+
 func init() {
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to Kubernetes config file")
 	flag.Parse()
 }
 
+func (c *AppConf) getConf() (*AppConf, error) {
+	filename, _ := filepath.Abs("config.yaml")
+	confFile, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	err = yaml.Unmarshal(confFile, c)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 func main() {
 
-	var config *rest.Config
 	var err error
+	var appConfig AppConf
+	appConfig.getConf()
 
+	logger, err := logging.InitLogger(appConfig.Logger)
+	if err != nil {
+		logger.Panic(err.Error())
+	}
+	logger.Infof("ZAP logger initialised in %s mode", appConfig.Logger)
+
+	var config *rest.Config
+
+	logger.Info("Loading Kubernetes cluster configuration")
 	if kubeconfig == "" {
-		log.Printf("using in-cluster configuration")
+		logger.Info("Using in-cluster configuration")
 		config, err = rest.InClusterConfig()
 	} else {
-		log.Printf("using configuration from '%s'", kubeconfig)
+		logger.Infof("Using configuration from %s", kubeconfig)
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
 
 	if err != nil {
-		panic(err)
+		logger.Panic(err.Error())
 	}
 
 	v1.AddToScheme(scheme.Scheme)
@@ -45,11 +80,14 @@ func main() {
 	crdConfig.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
 	crdConfig.UserAgent = rest.DefaultKubernetesUserAgent()
 
-	/*
-		mongodbs, err := clientSet.MongoDBs("ts-emea").List(metav1.ListOptions{})
-		if err != nil {
-			panic(err)
-		}
+	clientSet, err := clientV1.NewForConfig(config)
+	if err != nil {
+		logger.Panic(err.Error())
+	}
+	mongodbs, err := clientSet.MongoDBs("ts-emea").List(metav1.ListOptions{})
+	if err != nil {
+		logger.Panic(err.Error())
+	}
 
-		fmt.Printf("mongodbs found: %+v\n", mongodbs) */
+	logger.Infof("mongodbs found: %+v\n", mongodbs)
 }
