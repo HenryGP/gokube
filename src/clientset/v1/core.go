@@ -12,11 +12,27 @@ import (
 type CoreInterface interface {
 	CreateConfigMap(projectName string, projectId string, baseUrl string) (*apiv1.ConfigMap, error)
 	CreateSecret(projectName string, apiUser string, apiKey string) (*apiv1.Secret, error)
+	DeleteConfigMap(projectName string) error
+	DeleteSecret(secretName string) error
 }
 
 type coreClient struct {
 	client kubernetes.Interface
 	ns     string
+}
+
+func (c *coreClient) DeleteConfigMap(projectName string) error {
+	var err error
+
+	_, err = c.client.CoreV1().ConfigMaps(c.ns).Get(projectName, metav1.GetOptions{})
+	if err != nil {
+		return nil
+	}
+	err = c.client.CoreV1().ConfigMaps(c.ns).Delete(projectName, &metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *coreClient) CreateConfigMap(projectName string, orgId string, baseUrl string) (*apiv1.ConfigMap, error) {
@@ -25,7 +41,7 @@ func (c *coreClient) CreateConfigMap(projectName string, orgId string, baseUrl s
 
 	queryResult, err = c.client.CoreV1().ConfigMaps(c.ns).Get(projectName, metav1.GetOptions{})
 	if err != nil {
-		zap.S().Warn(err.Error())
+		//zap.S().Warn(err.Error())
 		configMap := &apiv1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
@@ -56,13 +72,27 @@ func (c *coreClient) CreateConfigMap(projectName string, orgId string, baseUrl s
 	return queryResult, nil
 }
 
+func (c *coreClient) DeleteSecret(secretName string) error {
+	var err error
+
+	_, err = c.client.CoreV1().Secrets(c.ns).Get(secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil
+	}
+	err = c.client.CoreV1().Secrets(c.ns).Delete(secretName, &metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *coreClient) CreateSecret(secretName string, apiUser string, apiKey string) (*apiv1.Secret, error) {
 	var err error
 	var queryResult *apiv1.Secret
 
 	queryResult, err = c.client.CoreV1().Secrets(c.ns).Get(secretName, metav1.GetOptions{})
 	if err != nil {
-		zap.S().Warn(err.Error())
+		//zap.S().Warn(err.Error())
 		encodedUser := base64.StdEncoding.EncodeToString([]byte(apiUser))
 		encodedKey := base64.StdEncoding.EncodeToString([]byte(apiKey))
 
