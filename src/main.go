@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	logging "logging"
-
+	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	yaml "gopkg.in/yaml.v2"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -77,12 +77,96 @@ func main() {
 	}
 
 	clientSet.Core(appConfig.Kubernetes["namespace"]).
-		CreateConfigMap(appConfig.Kubernetes["config_map_name"], appConfig.OpsManager["project"], appConfig.OpsManager["base_url"])
+		CreateConfigMap(appConfig.Kubernetes["config_map_name"], appConfig.OpsManager["org_id"], appConfig.OpsManager["base_url"])
 
 	clientSet.Core(appConfig.Kubernetes["namespace"]).
 		CreateSecret(appConfig.Kubernetes["secret_name"], appConfig.OpsManager["api_user"], appConfig.OpsManager["api_password"])
 
 	/*
+		var shardedCluster = v1.MongoDB{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "MongoDB",
+				APIVersion: "mongodb.com/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "shardedclustertest",
+				Namespace: appConfig.Kubernetes["namespace"],
+			},
+			Spec: v1.MongoSpec{
+				Version:              "4.0.4",
+				Credentials:          appConfig.Kubernetes["secret_name"],
+				Project:              appConfig.Kubernetes["config_map_name"],
+				Type:                 "ShardedCluster",
+				ConfigServerCount:    3,
+				MongoDsPerShardCount: 3,
+				MongosCount:          3,
+				ShardCount:           2,
+			},
+		}
+
+		var result *v1.MongoDB
+		result, err = clientSet.MongoDBs(appConfig.Kubernetes["namespace"]).
+			Create(&shardedCluster)
+
+		if err != nil {
+			logger.Panic(err.Error())
+		}
+		logger.Infof("mongodb %d", result)
+
+
+			var replicaSet = v1.MongoDB{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "MongoDB",
+					APIVersion: "mongodb.com/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "replicasettest",
+					Namespace: appConfig.Kubernetes["namespace"],
+				},
+				Spec: v1.MongoSpec{
+					Version:     "4.0.4",
+					Credentials: appConfig.Kubernetes["secret_name"],
+					Project:     appConfig.Kubernetes["config_map_name"],
+					Type:        "ReplicaSet",
+					Members:     3,
+				},
+			}
+
+			var result *v1.MongoDB
+			result, err = clientSet.MongoDBs(appConfig.Kubernetes["namespace"]).
+				Create(&replicaSet)
+
+			if err != nil {
+				logger.Panic(err.Error())
+			}
+			logger.Infof("mongodb %d", result)
+
+
+				var standalone = v1.MongoDB{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "MongoDB",
+						APIVersion: "mongodb.com/v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "standalonetest",
+						Namespace: appConfig.Kubernetes["namespace"],
+					},
+					Spec: v1.MongoSpec{
+						Version:     "4.0.4",
+						Credentials: appConfig.Kubernetes["secret_name"],
+						Project:     appConfig.Kubernetes["config_map_name"],
+						Type:        "Standalone",
+					},
+				}
+
+				var result *v1.MongoDB
+				result, err = clientSet.MongoDBs(appConfig.Kubernetes["namespace"]).Create(&standalone)
+
+				if err != nil {
+					logger.Panic(err.Error())
+				}
+				logger.Infof("mongodb %d", result)
+
 		mongodbs, err := clientSet.MongoDBs(appConfig.Kubernetes["namespace"]).List(metav1.ListOptions{})
 		if err != nil {
 			logger.Panic(err.Error())

@@ -19,7 +19,7 @@ type coreClient struct {
 	ns     string
 }
 
-func (c *coreClient) CreateConfigMap(projectName string, projectId string, baseUrl string) (*apiv1.ConfigMap, error) {
+func (c *coreClient) CreateConfigMap(projectName string, orgId string, baseUrl string) (*apiv1.ConfigMap, error) {
 	var err error
 	var queryResult *apiv1.ConfigMap
 
@@ -36,8 +36,9 @@ func (c *coreClient) CreateConfigMap(projectName string, projectId string, baseU
 				Namespace: c.ns,
 			},
 			Data: map[string]string{
-				"projectId": projectId,
-				"baseUrl":   baseUrl,
+				"projectName": projectName,
+				"orgId":       orgId,
+				"baseUrl":     baseUrl,
 			},
 		}
 
