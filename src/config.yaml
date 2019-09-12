@@ -6,6 +6,8 @@ ops_manager:
 
 kubernetes:
   namespace: 
+  config_map_name: 
+  secret_name: 
 
 # Logger can be either: DEV or PROD
 logger: DEV

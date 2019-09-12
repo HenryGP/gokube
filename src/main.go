@@ -77,7 +77,10 @@ func main() {
 	}
 
 	clientSet.Core(appConfig.Kubernetes["namespace"]).
-		CreateConfigMap(appConfig.Kubernetes["project"], appConfig.Kubernetes["base_url"])
+		CreateConfigMap(appConfig.Kubernetes["config_map_name"], appConfig.OpsManager["project"], appConfig.OpsManager["base_url"])
+
+	clientSet.Core(appConfig.Kubernetes["namespace"]).
+		CreateSecret(appConfig.Kubernetes["secret_name"], appConfig.OpsManager["api_user"], appConfig.OpsManager["api_password"])
 
 	/*
 		mongodbs, err := clientSet.MongoDBs(appConfig.Kubernetes["namespace"]).List(metav1.ListOptions{})
