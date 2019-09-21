@@ -1,0 +1,7 @@
+kubernetes:
+  # Full path to Kubernetes Config file. Leave blank when app runs InCluster
+  kubeconfig:
+  namespace:
+
+# Logger can be either: DEV or PROD
+logger: DEV
